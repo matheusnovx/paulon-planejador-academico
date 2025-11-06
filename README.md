@@ -1,4 +1,6 @@
-# Geração de Grafos Curriculares
+# Paulon - Planejador Academico Unificado Livre ONline
+
+Este repositório contém o código-fonte e os artefatos do projeto, desenvolvido e apresentado como Trabalho de Conclusão de Curso (TCC) para o curso de Ciência da Computação da UFSC. O projeto foca na geração, processamento e visualização de estruturas curriculares acadêmicas na forma de grafos, facilitando a análise de dependências e o planejamento de estudos.
 
 * **Frontend**: Next.js (React)
 * **Backend (Processamento)**: Ktor (Kotlin) com scripts Python
@@ -67,8 +69,8 @@ docker-compose up -d --build
 
 Após os passos acima, a aplicação estará disponível nos seguintes endereços:
 
-* 🌐 **Aplicação Frontend**: `http://localhost:3000`
-* 💾 **Banco de Dados (Neo4j Browser)**: `http://localhost:7474`
+* **Aplicação Frontend**: `http://localhost:3000`
+* **Banco de Dados (Neo4j Browser)**: `http://localhost:7474`
     * *Nota: A autenticação foi desabilitada (`NEO4J_AUTH=none`). Você pode se conectar sem usuário ou senha.*
 
 ## 4. Comandos Úteis

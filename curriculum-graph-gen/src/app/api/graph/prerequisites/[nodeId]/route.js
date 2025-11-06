@@ -26,15 +26,12 @@ async function getDriver() {
 
 // --- API GET Handler ---
 export async function GET(request, { params }) {
-  // 1. Extract nodeId from the dynamic route segment
   const { nodeId } = await params;
 
-  // 2. Extract query parameters from the request URL
   const { searchParams } = new URL(request.url);
   const curriculumId = searchParams.get('curriculumId');
   const courseCodeParam = searchParams.get('courseCode');
 
-  // 3. Validate the presence and type of required parameters
   if (!curriculumId || !courseCodeParam) {
     return NextResponse.json({ error: 'Missing required query parameters: curriculumId and courseCode.' }, { status: 400 });
   }
@@ -53,8 +50,6 @@ export async function GET(request, { params }) {
 
   const session = driver.session();
   try {
-    // 4. Use all parameters in the Cypher query to make it fully dynamic
-    // Note the reversed relationship direction compared to the path API
     const result = await session.run(
       `
        // Find the starting course within the specified curriculum
@@ -69,7 +64,7 @@ export async function GET(request, { params }) {
 
        RETURN nodes(path) AS pathNodes
       `,
-      { nodeId, curriculumId, courseCode } // Pass all parameters to the query
+      { nodeId, curriculumId, courseCode }
     );
     
     const highlightedIds = new Set([nodeId]);

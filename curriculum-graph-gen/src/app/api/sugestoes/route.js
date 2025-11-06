@@ -177,7 +177,7 @@ async function getAvailableCourses(session, curriculumId, courseCode, completedC
   return result.records.map(record => ({
     courseId: record.get('courseId'),
     courseName: record.get('courseName'),
-    workloadHours: Number(record.get('workloadHours')), // Converte para número
+    workloadHours: Number(record.get('workloadHours')),
     suggestedSemester: record.get('suggestedSemester'),
   }));
 }
