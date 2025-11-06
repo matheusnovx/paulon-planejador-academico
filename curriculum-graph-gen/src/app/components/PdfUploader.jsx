@@ -37,7 +37,6 @@ export default function PdfUploader({ onDataReceived }) {
       const formData = new FormData();
       formData.append('file', file);
       
-      // Only append these if provided (they're now optional)
       if (curriculumId) formData.append('curriculumId', curriculumId);
       if (courseCode) formData.append('courseCode', courseCode);
       
@@ -53,7 +52,6 @@ export default function PdfUploader({ onDataReceived }) {
       
       const result = await response.json();
       
-      // Store the results in localStorage for persistence
       localStorage.setItem('parsedPdfData', JSON.stringify(result.data));
       
       if (onDataReceived) {

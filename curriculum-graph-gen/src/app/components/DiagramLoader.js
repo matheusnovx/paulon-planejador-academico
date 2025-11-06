@@ -49,30 +49,6 @@ export default function DiagramPage() {
   return (
     <main className="container mx-auto p-4 font-sans text-white min-h-screen">
       <div className="space-y-6">
-        <div className="flex flex-col items-center justify-center">
-            <label htmlFor="curriculum-select" className="mb-2 text-lg font-medium">
-                Selecione um curso:
-            </label>
-            {isLoading ? (
-                <p>Carregando os cursos disponiveis...</p>
-            ) : error ? (
-                <p className="text-red-500">{error}</p>
-            ) : (
-                <select
-                    id="curriculum-select"
-                    onChange={handleCurriculumChange}
-                    value={selectedCurriculum?.id || ''}
-                    className="p-2 border rounded-md bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full max-w-md"
-                >
-                    {curricula.map((curriculum) => (
-                        <option key={curriculum.id} value={curriculum.id}>
-                            {curriculum.label}
-                        </option>
-                    ))}
-                </select>
-            )}
-        </div>
-
         {/* Conditionally render the diagram only when a curriculum is selected */}
         {selectedCurriculum ? (
           <CurriculumDiagram
@@ -80,6 +56,31 @@ export default function DiagramPage() {
             curriculumId={selectedCurriculum.originalId || selectedCurriculum.id}
             uniqueId={selectedCurriculum.id}
             courseCode={selectedCurriculum.courseCode}
+            legendPanel={
+              <div className="flex flex-col items-center justify-center p-2">
+                <label htmlFor="curriculum-select" className="mb-2 text-sm font-medium text-white">
+                  Selecione um curso:
+                </label>
+                {isLoading ? (
+                  <p className="text-xs text-gray-300">Carregando os cursos...</p>
+                ) : error ? (
+                  <p className="text-red-500 text-xs">{error}</p>
+                ) : (
+                  <select
+                    id="curriculum-select"
+                    onChange={handleCurriculumChange}
+                    value={selectedCurriculum?.id || ''}
+                    className="p-2 border rounded-md bg-gray-700 border-gray-600 text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none w-full max-w-xs text-sm"
+                  >
+                    {curricula.map((curriculum) => (
+                      <option key={curriculum.id} value={curriculum.id}>
+                        {curriculum.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            }
           />
         ) : (
             !isLoading && <div className="text-center p-8">Please select a curriculum to display its graph.</div>

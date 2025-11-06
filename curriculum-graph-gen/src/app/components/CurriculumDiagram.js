@@ -283,7 +283,7 @@ export default function CurriculumDiagram({
     clearTimeout(clickTimeoutRef.current);
     clickTimeoutRef.current = setTimeout(() => {
       isProcessingClick.current = false;
-    }, 300); // 300ms debounce
+    }, 300);
   }, [selectedNodeId, handlePathHighlighting, handleNodeSelection]);
 
   useEffect(() => {
@@ -301,14 +301,12 @@ export default function CurriculumDiagram({
     setActiveHighlightType(null);
   }, []);
 
-  // Handle pane click
   const onPaneClick = useCallback(() => {
     closeInfo();
     setHighlightedIds(new Set());
     setActiveHighlightType(null);
   }, [closeInfo]);
 
-  // Apply student progress data to nodes
   const enhancedNodes = React.useMemo(() => {
     if (!nodes.length || Object.keys(courseStatusMap).length === 0) {
       return nodes;
@@ -363,7 +361,6 @@ export default function CurriculumDiagram({
     };
   }), [enhancedNodes, highlightedIds, selectedNodeId, coursesWithPrerequisites, coursesWithPostRequisites]);
 
-  // Apply highlighting to edges
   const edgesWithHighlight = React.useMemo(() => edges.map(edge => {
     const isHighlighted = highlightedIds.has(edge.source) && highlightedIds.has(edge.target);
     return {
@@ -373,13 +370,12 @@ export default function CurriculumDiagram({
     };
   }), [edges, highlightedIds]);
 
-  // Calculate progress statistics
   const progressStats = React.useMemo(() => {
     if (!studentProgress) return null;
     
     const completed = studentProgress.cursadas.length + studentProgress.dispensadas.length;
     const inProgress = studentProgress.andamento.length;
-    const total = nodes.length; // Total courses in curriculum
+    const total = nodes.length;
     const pending = total - completed - inProgress;
     
     return {
@@ -391,7 +387,6 @@ export default function CurriculumDiagram({
     };
   }, [studentProgress, nodes.length]);
 
-  // Notifica o componente pai sobre o total de cursos carregados
   useEffect(() => {
     if (nodes.length > 0 && onTotalCoursesUpdate) {
       onTotalCoursesUpdate(nodes.length);
@@ -414,6 +409,13 @@ export default function CurriculumDiagram({
       >
         <Controls showInteractive={false} />
         <Background color="#333" gap={16} />
+
+        {/* Escolher curso para ver o curriculo */}
+        {legendPanel && (
+          <Panel position="top-right">
+            {legendPanel}
+          </Panel>
+        )}
         
         {loading && <Panel position="top-center"><div className="p-2 bg-gray-700 rounded">Carregando...</div></Panel>}
         {error && <Panel position="top-center"><div className="p-2 bg-red-800 text-white rounded">Erro: {error}</div></Panel>}
@@ -533,7 +535,7 @@ export default function CurriculumDiagram({
                   )}
                 </div>
 
-                {/* Add a button to clear all highlights when both are active */}
+                {/* Adicionar botão para limpar todos os destaques quando ambos estiverem ativos */}
                 {activeHighlightType === 'both' && (
                   <button 
                     onClick={() => {
