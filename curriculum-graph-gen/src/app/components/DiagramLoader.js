@@ -83,7 +83,7 @@ export default function DiagramPage() {
             }
           />
         ) : (
-            !isLoading && <div className="text-center p-8">Please select a curriculum to display its graph.</div>
+            !isLoading && <div className="text-center p-8">Por favor selecione um currículo para exibir seu grafo.</div>
         )}
       </div>
     </main>
