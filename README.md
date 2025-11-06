@@ -2,6 +2,8 @@
 
 Este repositório contém o código-fonte e os artefatos do projeto, desenvolvido e apresentado como Trabalho de Conclusão de Curso (TCC) para o curso de Ciência da Computação da UFSC. O projeto foca na geração, processamento e visualização de estruturas curriculares acadêmicas na forma de grafos, facilitando a análise de dependências e o planejamento de estudos.
 
+# Tecnologias
+
 * **Frontend**: Next.js (React)
 * **Backend (Processamento)**: Ktor (Kotlin) com scripts Python
 * **Banco de Dados**: Neo4j
