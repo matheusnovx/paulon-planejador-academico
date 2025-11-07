@@ -38,16 +38,15 @@ export async function POST(request) {
     const body = await request.json();
         
     const {
-      studentProgress, // Progresso atual do aluno (disciplinas cursadas, em andamento)
-      curriculumId,    // ID do currículo do aluno
-      courseCode,      // Código do curso
-      maxWorkload,     // Carga horária máxima semanal (em horas)
-      semester,        // Semestre para o qual deseja sugestões (ex: "2023.1")
-      avoidDays = [],  // Dias que o aluno prefere não ter aula (opcional)
-      preferredTimes = [] // Horários preferidos (manhã/tarde/noite) (opcional)
+      studentProgress,
+      curriculumId,
+      courseCode,
+      maxWorkload,
+      semester,
+      avoidDays = [],
+      preferredTimes = []
     } = body;
     
-    // Verificar se os parâmetros obrigatórios estão presentes
     if (!studentProgress || !curriculumId || !courseCode || !maxWorkload || !semester) {
       return NextResponse.json(
         { error: 'Parâmetros incompletos' },
@@ -55,19 +54,14 @@ export async function POST(request) {
       );
     }
     
-    // Extrair disciplinas já cursadas e em andamento
     const completedCourses = [
       ...studentProgress.cursadas.map(course => course.codigo),
       ...studentProgress.dispensadas.map(course => course.codigo),
-      ...studentProgress.andamento.map(course => course.codigo) // Adiciona as em andamento também
+      ...studentProgress.andamento.map(course => course.codigo)
     ];
     const inProgressCourses = studentProgress.andamento.map(course => course.codigo);
 
-    // console.log('Cursadas:', completedCourses);
-    // console.log('Em andamento:', inProgressCourses);
-    
     try {
-      // 1. Buscar disciplinas disponíveis
       const availableCourses = await getAvailableCourses(
         session, 
         curriculumId, 
@@ -75,24 +69,19 @@ export async function POST(request) {
         completedCourses, 
         inProgressCourses
       );
-      // console.log(`📌 Disciplinas disponíveis: ${availableCourses.map(course => course.courseName).join(', ')}`);
       
-      // 2. Buscar turmas disponíveis
       const availableClasses = await getAvailableClasses(
         session,
         availableCourses,
         semester
       );
-      // console.log(`📌 Turmas disponíveis: ${availableClasses.length}`);
       
-      // 3. Calcular unlock scores
       const coursesWithUnlockScore = await calculateUnlockScores(
         session,
         availableCourses,
         curriculumId
       );
       
-      // 4. Otimizar
       const suggestedSchedule = optimizeSchedule(
         availableClasses,
         coursesWithUnlockScore,
@@ -126,7 +115,6 @@ export async function POST(request) {
   }
 }
 
-// Funções auxiliares abaixo
 async function getAvailableCourses(session, curriculumId, courseCode, completedCourses, inProgressCourses) {
   const query = `
     // 1. Encontra o currículo base usando os parâmetros
@@ -208,7 +196,6 @@ async function getAvailableClasses(session, availableCourses, semester) {
     semester,
   });
 
-  // Mapeia os resultados retornados pela query
   return result.records.map(record => ({
     courseId: record.get('courseId'),
     courseName: record.get('courseName'),
@@ -256,28 +243,23 @@ async function calculateUnlockScores(session, availableCourses, curriculumId) {
     curriculumId
   });
 
-  // Mapear os resultados do unlock score
   const unlockScoresMap = result.records.reduce((map, record) => {
     map[record.get('courseId')] = record.get('unlockScore');
     return map;
   }, {});
 
-  // Adicionar o unlock score às disciplinas disponíveis
   return availableCourses.map(course => ({
     ...course,
-    unlockScore: Number(unlockScoresMap[course.courseId] || 0), // Converte para número
+    unlockScore: Number(unlockScoresMap[course.courseId] || 0),
   }));
 }
 
-function optimizeSchedule(availableClasses, coursesWithUnlockScore, maxWorkload, avoidDays = [], periodsToAvoid = []) {
-  // Mapa para recuperar facilmente o unlock score de um curso
+function optimizeSchedule(availableClasses, coursesWithUnlockScore, maxWorkload, avoidDays = [], preferredTimes = []) {
   const unlockScoreMap = coursesWithUnlockScore.reduce((map, course) => {
     map[course.courseId] = course.unlockScore;
     return map;
   }, {});
 
-  // Pré-processamento para evitar duplicidade de disciplinas
-  // Agrupamos as turmas por disciplina
   const classesByCoursesMap = availableClasses.reduce((map, cls) => {
     if (!map[cls.courseId]) {
       map[cls.courseId] = [];
@@ -286,79 +268,87 @@ function optimizeSchedule(availableClasses, coursesWithUnlockScore, maxWorkload,
     return map;
   }, {});
 
-  // Para cada disciplina, classificar suas turmas por preferências
-  const classesWithScore = [];
-
   Object.keys(classesByCoursesMap).forEach(courseId => {
     const classes = classesByCoursesMap[courseId];
-
     classes.forEach(cls => {
-      // Calcular um score de compatibilidade para a turma
       let compatibilityScore = 0;
-
-      // Penalizar turmas em dias que o aluno quer evitar
       const hasDaysToAvoid = cls.timeSlots.some(slot => avoidDays.includes(slot));
-      if (hasDaysToAvoid) {
-        compatibilityScore -= 10;
-      }
-
-      // Penalizar turmas em horários preferidos
-      if (periodsToAvoid.includes(cls.phase)) {
-        compatibilityScore -= 5;
-      }
-
-      // O valor da turma é uma combinação do unlock score da disciplina e compatibilidade
-      const unlockScore = Number(unlockScoreMap[courseId]); // Converte para número
-      const value = unlockScore * 3 + compatibilityScore;
-
-      classesWithScore.push({
-        ...cls,
-        value,
-        density: value / Number(cls.weeklyHours) // Densidade de valor (valor por hora de aula)
-      });
+      if (hasDaysToAvoid) compatibilityScore -= 10;
+      if (preferredTimes.includes(cls.phase)) compatibilityScore -= 5;
+      
+      const unlockScore = Number(unlockScoreMap[courseId]);
+      cls.value = unlockScore * 3 + compatibilityScore;
+      cls.weeklyHours = Number(cls.weeklyHours);
     });
   });
 
-  // Ordenar as turmas pela densidade de valor (decrescente)
-  classesWithScore.sort((a, b) => b.density - a.density);
+  const courseIds = Object.keys(classesByCoursesMap);
 
-  // Algoritmo guloso para selecionar turmas
-  const selectedClasses = [];
-  let currentWorkload = 0;
-  const selectedCourseIds = new Set(); // Para evitar selecionar mais de uma turma da mesma disciplina
-
-  // Função para verificar conflito de horários
   const hasTimeConflict = (class1, class2) => {
     const commonSlots = class1.timeSlots.filter(slot => class2.timeSlots.includes(slot));
     return commonSlots.length > 0;
   };
 
-  for (const cls of classesWithScore) {
-    // Verificar se já selecionamos uma turma desta disciplina
-    if (selectedCourseIds.has(cls.courseId)) continue;
+  const conflictsWithSchedule = (newClass, schedule) => {
+    return schedule.some(selectedCls => hasTimeConflict(newClass, selectedCls));
+  };
 
-    // Verificar se adicionar essa turma excede a carga horária máxima
-    if (Number(currentWorkload) + Number(cls.weeklyHours) > Number(maxWorkload)) continue;
 
-    // Verificar conflitos de horário com turmas já selecionadas
-    const hasConflict = selectedClasses.some(selectedCls => hasTimeConflict(cls, selectedCls));
-    if (hasConflict) continue;
+  let bestSchedule = [];
+  let bestValue = -Infinity;
 
-    // Adicionar a turma à seleção
-    selectedClasses.push(cls);
-    currentWorkload += Number(cls.weeklyHours);
-    selectedCourseIds.add(cls.courseId);
+  /**
+   * Função recursiva que explora todas as combinações.
+   * @param {number} courseIndex - O índice da *disciplina* que estamos decidindo.
+   * @param {Array} currentSchedule - A grade sendo construída nesta ramificação.
+   * @param {number} currentWorkload - A carga horária atual desta ramificação.
+   */
+  function findCombinations(courseIndex, currentSchedule, currentWorkload) {
+    
+    if (courseIndex === courseIds.length) {
+      const currentValue = currentSchedule.reduce((sum, cls) => sum + cls.value, 0);
+
+      if (currentValue > bestValue) {
+        bestValue = currentValue;
+        bestSchedule = [...currentSchedule];
+      }
+      return;
+    }
+
+    const courseId = courseIds[courseIndex];
+    const classesForThisCourse = classesByCoursesMap[courseId];
+
+    findCombinations(courseIndex + 1, currentSchedule, currentWorkload);
+
+    for (const cls of classesForThisCourse) {
+      
+      const fitsWorkload = (currentWorkload + cls.weeklyHours) <= Number(maxWorkload);
+      
+      const hasConflict = conflictsWithSchedule(cls, currentSchedule);
+
+      if (fitsWorkload && !hasConflict) {
+        currentSchedule.push(cls);
+        findCombinations(
+          courseIndex + 1, 
+          currentSchedule, 
+          currentWorkload + cls.weeklyHours
+        );
+        currentSchedule.pop();
+      }
+    }
   }
+  findCombinations(0, [], 0);
 
-  // Enriquecer as turmas selecionadas com informações extras
+  const finalWorkload = bestSchedule.reduce((sum, cls) => sum + cls.weeklyHours, 0);
+
   return {
-    classes: selectedClasses.map(cls => ({
+    classes: bestSchedule.map(cls => ({
       ...cls,
       unlockScore: unlockScoreMap[cls.courseId],
-      phase: cls.phase
     })),
-    totalWeeklyHours: currentWorkload,
-    remainingHours: Number(maxWorkload) - Number(currentWorkload),
-    totalCourses: selectedClasses.length
+    totalWeeklyHours: finalWorkload,
+    remainingHours: Number(maxWorkload) - finalWorkload,
+    totalCourses: bestSchedule.length,
+    totalValue: bestValue
   };
 }
