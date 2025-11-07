@@ -3,21 +3,29 @@ import re
 import json
 import sys
 import traceback
+import io
 
-def parse_pdf(pdf_path):
-    """Parse a curriculum PDF and extract course codes with type (Ob/Op)."""
-    output_path = pdf_path.replace(".pdf", ".json").replace(".PDF", ".json")
-
-    print(f"Processing PDF: {pdf_path}")
-    print(f"Output will be saved to: {output_path}")
+def parse_pdf_content(pdf_source=None, pdf_bytes=None):
+    """Retorna (results, output_path_or_None). Se pdf_bytes fornecido, não escreve ficheiro."""
+    output_path = None
 
     # Extrai todo o texto do PDF
     full_text = ""
-    with pdfplumber.open(pdf_path) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            if text:
-                full_text += text + "\n"
+    if pdf_bytes is not None:
+        fp = io.BytesIO(pdf_bytes)
+        with pdfplumber.open(fp) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    full_text += text + "\n"
+    else:
+        # pdf_source espera ser um caminho
+        output_path = str(pdf_source).replace(".pdf", ".json").replace(".PDF", ".json")
+        with pdfplumber.open(pdf_source) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if text:
+                    full_text += text + "\n"
 
     # Extrai metadados do currículo
     curriculum_info = extract_curriculum_info(full_text)
@@ -71,10 +79,10 @@ def parse_pdf(pdf_path):
             elif re.search(r'\d{4}/\d\s+\d+\.\d', block):
                 results["cursadas"].append({"codigo": codigo, "tipo": tipo})
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(results, f, ensure_ascii=False, indent=2)
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(results, f, ensure_ascii=False, indent=2)
 
-    print(f"saved to: {output_path}")
     return results, output_path
 
 
@@ -126,13 +134,26 @@ def extract_curriculum_info(text):
 
 if __name__ == "__main__":
     try:
+        # Modo stdin: se nenhum argumento, lê bytes do stdin e escreve JSON no stdout (apenas JSON)
         if len(sys.argv) < 2:
-            print("Usage: python pdf_parser.py <pdf_path>")
-            sys.exit(1)
-
-        pdf_path = sys.argv[1]
-        parse_pdf(pdf_path)
+            pdf_bytes = sys.stdin.buffer.read()
+            if not pdf_bytes:
+                # sem dados no stdin -> erro
+                print("No PDF data received on stdin", file=sys.stderr)
+                sys.exit(1)
+            results, _ = parse_pdf_content(pdf_bytes=pdf_bytes)
+            # só imprime JSON (sem logs extra)
+            print(json.dumps(results, ensure_ascii=False))
+            sys.exit(0)
+        else:
+            pdf_path = sys.argv[1]
+            # prints informativos vão para stderr (não poluem stdout)
+            print(f"Processing PDF: {pdf_path}", file=sys.stderr)
+            results, output_path = parse_pdf_content(pdf_source=pdf_path)
+            print(f"Output will be saved to: {output_path}", file=sys.stderr)
+            print(f"saved to: {output_path}", file=sys.stderr)
+            sys.exit(0)
     except Exception as e:
-        print(f"Unexpected error: {e}")
-        traceback.print_exc()
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)

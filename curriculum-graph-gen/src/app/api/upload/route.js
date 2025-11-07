@@ -1,11 +1,7 @@
 import { NextResponse } from 'next/server';
-import { writeFile } from 'fs/promises';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import path from 'path';
 import fs from 'fs';
-
-const execPromise = promisify(exec);
+import { spawn } from 'child_process';
 
 const uploadDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadDir)) {
@@ -37,15 +33,7 @@ export async function POST(request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     
-    const timestamp = Date.now();
-    const cleanedFileName = fileName.replace(/\.pdf\.pdf$/i, '.pdf');
-    const uniqueFileName = `${timestamp}-${cleanedFileName}`;
-    const filePath = path.join(uploadDir, uniqueFileName);
-    
-    await writeFile(filePath, buffer);
-    
-    console.log(`PDF uploaded to ${filePath}`);
-    
+    // --- begin replacement: don't write file to disk, stream to python stdin ---
     const pythonScript = path.join(process.cwd(), 'src', 'app', 'lib', 'parsers', 'pdf_parser.py');
     
     if (!fs.existsSync(pythonScript)) {
@@ -55,45 +43,46 @@ export async function POST(request) {
         { status: 500 }
       );
     }
-    
-    const pythonPath = "python3";
-    const command = `"${pythonPath}" "${pythonScript}" "${filePath}"`;
-    let stdout, stderr;
-    
+
+    const py = spawn('python3', [pythonScript], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    let stderr = '';
+
+    py.stdout.on('data', (data) => { stdout += data.toString(); });
+    py.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    py.on('error', (err) => {
+      console.error('Failed to start python:', err);
+    });
+
+    await new Promise((resolve, reject) => {
+      py.on('close', (code) => {
+        if (code !== 0) {
+          return reject(new Error(`Python exited with code ${code}: ${stderr}`));
+        }
+        resolve();
+      });
+      // envia o PDF binário para o stdin do script Python
+      py.stdin.write(buffer);
+      py.stdin.end();
+    });
+
+    // REMOVIDA a verificação que tratava qualquer conteúdo em stderr como erro.
+    // Se o processo saiu com código 0, prosseguimos — mensagens de log em stderr são permitidas.
+
+    let parsedData;
     try {
-      console.log(`Executing: ${command}`);
-      ({ stdout, stderr } = await execPromise(command));
-    } catch (pythonError) {
-      console.error('Error executing Python script:', pythonError);
+      parsedData = JSON.parse(stdout);
+    } catch (e) {
+      console.error('Invalid JSON from parser:', e, 'raw stdout:', stdout);
       return NextResponse.json(
-        { error: `Failed to parse PDF: ${pythonError.message}` },
+        { error: 'Parser returned invalid JSON' },
         { status: 500 }
       );
     }
-    
-    if (stderr) {
-      console.error('Error parsing PDF:', stderr);
-      return NextResponse.json(
-        { error: `Failed to parse PDF: ${stderr}` },
-        { status: 500 }
-      );
-    }
-    
-    console.log('Parser output:', stdout);
-    
-    const expectedJsonPath = filePath.replace(/\.pdf$/i, '.json');
-    console.log(`Looking for JSON at: ${expectedJsonPath}`);
-    
-    if (!fs.existsSync(expectedJsonPath)) {
-      console.error(`JSON file not found at: ${expectedJsonPath}`);
-      return NextResponse.json(
-        { error: 'Parser did not generate output file' },
-        { status: 500 }
-      );
-    }
-    
-    const parsedData = JSON.parse(fs.readFileSync(expectedJsonPath, 'utf8'));
-    
+    // --- end replacement ---
+
     if (userProvidedCurriculumId) {
       parsedData.curriculumId = userProvidedCurriculumId;
     }
@@ -102,7 +91,6 @@ export async function POST(request) {
       parsedData.courseCode = userProvidedCourseCode;
     }
     
-    // If we still don't have curriculum ID or course code, use defaults
     if (!parsedData.curriculumId) {
       console.warn("Could not extract curriculum ID from PDF, using default");
       parsedData.curriculumId = "20071";
